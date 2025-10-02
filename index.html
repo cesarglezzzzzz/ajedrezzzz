@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Ajedrez — IA Estratégica</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
   <header>
@@ -15,9 +15,8 @@
         <option value="3">3 (rápido)</option>
         <option value="4" selected>4 (equilibrado)</option>
         <option value="5">5 (fuerte)</option>
-        <option value="6">6 (muy fuerte, más lento)</option>
+        <option value="6">6 (muy fuerte - más lento)</option>
       </select>
-
       <button id="restartBtn">Reiniciar</button>
     </div>
   </header>
@@ -25,18 +24,20 @@
   <main>
     <aside class="info">
       <div id="status">Turno de blancas</div>
-      <div class="note">Haz clic en una pieza blanca para ver movimientos legales.</div>
+      <div class="note">Haz clic en una pieza blanca para seleccionar y ver movimientos legales.</div>
     </aside>
 
     <section id="boardWrap">
-      <div id="board" class="board"></div>
+      <div id="board" class="board" aria-label="Tablero de ajedrez"></div>
     </section>
   </main>
 
   <footer>
-    <small>Motor diseñado para jugar estratégico — profundidad configurable.</small>
+    <small>IA: Minimax + Alpha-Beta + Quiescence + Evaluación estratégica</small>
   </footer>
 
   <script src="chess.js"></script>
 </body>
 </html>
+
+
