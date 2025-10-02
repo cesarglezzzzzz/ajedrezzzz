@@ -1,222 +1,138 @@
-const boardEl = document.getElementById("board");
-const statusEl = document.getElementById("status");
-const restartBtn = document.getElementById("restartBtn");
+// --- Variables globales ---
+let board = [
+  ["r","n","b","q","k","b","n","r"],
+  ["p","p","p","p","p","p","p","p"],
+  ["","","","","","","",""],
+  ["","","","","","","",""],
+  ["","","","","","","",""],
+  ["","","","","","","",""],
+  ["P","P","P","P","P","P","P","P"],
+  ["R","N","B","Q","K","B","N","R"]
+];
 
-let board = [];
-let turn = "w";
-let selected = null;
-let castling = {wK:true,wQ:true,bK:true,bQ:true};
+let selectedPiece = null;
+let castling = { wK:true, wQ:true, bK:true, bQ:true };
 let enPassant = null;
 
-// Piezas Unicode
-const pieces = {
-  P:"♙", R:"♖", N:"♘", B:"♗", Q:"♕", K:"♔",
-  p:"♟", r:"♜", n:"♞", b:"♝", q:"♛", k:"♚"
-};
+const boardEl = document.getElementById("board");
 
-// Worker IA
-const aiWorker = new Worker("aiWorker.js");
-
-// --- Inicializa tablero ---
-function initBoard(){
-  board = [
-    ["r","n","b","q","k","b","n","r"],
-    ["p","p","p","p","p","p","p","p"],
-    ["","","","","","","",""],
-    ["","","","","","","",""],
-    ["","","","","","","",""],
-    ["","","","","","","",""],
-    ["P","P","P","P","P","P","P","P"],
-    ["R","N","B","Q","K","B","N","R"]
-  ];
-  turn="w"; selected=null; castling={wK:true,wQ:true,bK:true,bQ:true}; enPassant=null;
-  drawBoard(); updateStatus(); restartBtn.style.display="none";
-}
-
-// --- Dibuja tablero ---
+// --- Inicializar tablero ---
 function drawBoard(){
   boardEl.innerHTML="";
   for(let r=0;r<8;r++){
     for(let c=0;c<8;c++){
-      const sq = document.createElement("div");
-      sq.className="square "+((r+c)%2==0?"white":"black");
-      sq.dataset.r=r; sq.dataset.c=c;
-      sq.textContent = board[r][c]?pieces[board[r][c]]:"";
-      sq.addEventListener("click", onClick);
-      boardEl.appendChild(sq);
+      const cell = document.createElement("div");
+      cell.classList.add("cell");
+      if((r+c)%2===0) cell.classList.add("white");
+      else cell.classList.add("black");
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+
+      const piece = board[r][c];
+      if(piece){
+        const pieceEl = document.createElement("div");
+        pieceEl.classList.add("piece");
+        pieceEl.textContent = piece;
+        pieceEl.dataset.r = r;
+        pieceEl.dataset.c = c;
+        cell.appendChild(pieceEl);
+      }
+
+      cell.addEventListener("click", onClickCell);
+      boardEl.appendChild(cell);
     }
   }
 }
 
-// --- Click del jugador ---
-function onClick(e){
-  if(turn!=="w") return;
-  const r=parseInt(e.target.dataset.r), c=parseInt(e.target.dataset.c);
-  if(selected){
-    movePiece(selected.r,selected.c,r,c);
-    selected=null;
-  } else if(board[r][c] && board[r][c]===board[r][c].toUpperCase()){
-    selected={r,c};
+function onClickCell(e){
+  const r = parseInt(e.currentTarget.dataset.r);
+  const c = parseInt(e.currentTarget.dataset.c);
+  const piece = board[r][c];
+
+  // Seleccionar pieza propia
+  if(piece && piece === piece.toUpperCase()){
+    selectedPiece = {r,c};
+    highlightMoves(selectedPiece);
+    return;
+  }
+
+  // Mover pieza
+  if(selectedPiece){
+    const move = { r1:selectedPiece.r, c1:selectedPiece.c, r2:r, c2:c };
+    if(isValidMove(move)){
+      makeMove(move);
+      selectedPiece=null;
+      drawBoard();
+      setTimeout(aiTurn, 100); // Turno IA
+    }
   }
 }
 
-// --- Mover pieza ---
-function movePiece(r1,c1,r2,c2){
-  if(turn!=="w") return;
-  const moves = generatePlayerMoves("w"); // jugador mueve libremente
-  const legal = moves.find(m=>m.r1===r1 && m.c1===c1 && m.r2===r2 && m.c2===c2);
-  if(!legal) return;
-  executeMove(legal);
-  turn="b";
-  updateStatus();
-  drawBoard();
-  if(checkEndGame()) return;
-  setTimeout(aiTurn,50);
+// --- Resalta movimientos legales ---
+function highlightMoves(piecePos){
+  const moves = generateLegalMoves("w").filter(m=>m.r1===piecePos.r && m.c1===piecePos.c);
+  document.querySelectorAll(".cell").forEach(cell=>cell.classList.remove("highlight"));
+  for(let m of moves){
+    const cell = document.querySelector(`.cell[data-r='${m.r2}'][data-c='${m.c2}']`);
+    if(cell) cell.classList.add("highlight");
+  }
 }
 
-// --- Ejecuta movimiento ---
-function executeMove(m){
-  const p = board[m.r1][m.c1];
-  board[m.r2][m.c2]=p; board[m.r1][m.c1]="";
-
-  // En passant
-  if(p.toLowerCase()==="p" && m.c2!==m.c1 && !board[m.r2][m.c2]) board[m.r1][m.c2]="";
-  // Promoción
-  if(p==="P" && m.r2===0) board[m.r2][m.c2]="Q";
-  if(p==="p" && m.r2===7) board[m.r2][m.c2]="q";
-  // Castling
-  if(p==="K"){ castling.wK=false; castling.wQ=false; }
-  if(p==="k"){ castling.bK=false; castling.bQ=false; }
-  if(p==="R" && m.r1===7 && m.c1===0) castling.wQ=false;
-  if(p==="R" && m.r1===7 && m.c1===7) castling.wK=false;
-  if(p==="r" && m.r1===0 && m.c1===0) castling.bQ=false;
-  if(p==="r" && m.r1===0 && m.c1===7) castling.bK=false;
-
-  // Enroque
-  if(p==="K" && m.c2-m.c1===2){ board[7][5]="R"; board[7][7]=""; }
-  if(p==="K" && m.c2-m.c1===-2){ board[7][3]="R"; board[7][0]=""; }
-  if(p==="k" && m.c2-m.c1===2){ board[0][5]="r"; board[0][7]=""; }
-  if(p==="k" && m.c2-m.c1===-2){ board[0][3]="r"; board[0][0]=""; }
+// --- Verifica si el movimiento es válido ---
+function isValidMove(move){
+  const legal = generateLegalMoves("w");
+  return legal.some(m=>m.r1===move.r1 && m.c1===move.c1 && m.r2===move.r2 && m.c2===move.c2);
 }
 
-function aiTurn(){
-  aiWorker.postMessage({
-    command: "start",
-    board: board,
-    castling: castling,
-    enPassant: enPassant,
-    depth: 4
-  });
+// --- Ejecutar movimiento ---
+function makeMove(move){
+  const piece = board[move.r1][move.c1];
+  board[move.r2][move.c2] = piece;
+  board[move.r1][move.c1] = "";
 }
 
+// --- Turno IA ---
+const aiWorker = new Worker("aiWorker.js");
 aiWorker.onmessage = function(e){
-  const bestMove = e.data;
-  if(bestMove){
-    executeMove(bestMove);
-    turn="w";
-    updateStatus();
-    drawBoard();
-    checkEndGame();
-  }
+  const m = e.data;
+  if(m) makeMove(m);
+  drawBoard();
 };
 
-// --- Estado ---
-function updateStatus(){
-  statusEl.textContent = turn==="w"?"Tu turno (modo entrenamiento)":"Turno de negras (IA)";
+function aiTurn(){
+  aiWorker.postMessage({command:"start", board, castling, enPassant, depth:6});
 }
 
-// --- Reinicio ---
-restartBtn.onclick = initBoard;
-
-// --- Fin de juego ---
-function checkEndGame(){
-  let white=false, black=false;
-  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
-    if(board[r][c]==="K") white=true;
-    if(board[r][c]==="k") black=true;
-  }
-  if(!white){ statusEl.textContent="¡Fin! Ganó la IA"; restartBtn.style.display="block"; return true; }
-  if(!black){ statusEl.textContent="¡Fin! Ganaste"; restartBtn.style.display="block"; return true; }
-  return false;
-}
-
-// --- Movimientos del jugador: libre ---
-function generatePlayerMoves(color){
-  let moves=[];
-  for(let r=0;r<8;r++){
-    for(let c=0;c<8;c++){
-      let p=board[r][c];
-      if(!p) continue;
-      if((color==="w" && p===p.toUpperCase())||(color==="b" && p===p.toLowerCase())){
-        moves.push(...pieceMoves(r,c,p));
-      }
-    }
-  }
-  return moves; // sin filtrar jaque
-}
-
-// --- Movimientos de la IA: legales ---
+// --- Generar movimientos legales (ligero, para resaltar solo) ---
 function generateLegalMoves(color){
   let moves=[];
   for(let r=0;r<8;r++){
     for(let c=0;c<8;c++){
-      let p=board[r][c];
+      const p = board[r][c];
       if(!p) continue;
-      if((color==="w" && p===p.toUpperCase())||(color==="b" && p===p.toLowerCase())){
+      if((color==="w"&&p===p.toUpperCase())||(color==="b"&&p===p.toLowerCase())){
         moves.push(...pieceMoves(r,c,p));
       }
-    }
-  }
-  return moves.filter(m=>!leavesKingInCheck(m,color));
-}
-
-// --- Verifica jaque ---
-function leavesKingInCheck(m,color){
-  const piece=board[m.r1][m.c1],cap=board[m.r2][m.c2];
-  board[m.r2][m.c2]=piece; board[m.r1][m.c1]="";
-  let inCheck=kingInCheck(color);
-  board[m.r1][m.c1]=piece; board[m.r2][m.c2]=cap;
-  return inCheck;
-}
-
-function kingInCheck(color){
-  let kingPos=null;
-  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
-    let p=board[r][c];
-    if((color==="w" && p==="K")||(color==="b" && p==="k")) kingPos={r,c};
-  }
-  if(!kingPos) return false; // evita errores si el rey fue capturado en simulaciones
-  const enemy=color==="w"?"b":"w";
-  return generatePseudoMoves(enemy).some(m=>m.r2===kingPos.r && m.c2===kingPos.c);
-}
-
-function generatePseudoMoves(color){
-  let moves=[];
-  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
-    let p=board[r][c]; if(!p) continue;
-    if((color==="w"&&p===p.toUpperCase())||(color==="b"&&p===p.toLowerCase())){
-      moves.push(...pieceMoves(r,c,p));
     }
   }
   return moves;
 }
 
-// --- Movimiento de piezas ---
+// --- Movimientos de piezas ---
 function pieceMoves(r,c,p){
-  let moves=[],enemy=p===p.toUpperCase()?"b":"w";
-  function add(r2,c2){ 
+  let moves=[], enemy = p===p.toUpperCase()?"b":"w";
+  function add(r2,c2){
     if(r2<0||r2>7||c2<0||c2>7) return;
-    let t=board[r2][c2];
-    if(!t || (enemy==="b"&&t===t.toLowerCase())||(enemy==="w"&&t===t.toUpperCase())) 
-      moves.push({r1:r,c1:c,r2,c2}); 
+    let t = board[r2][c2];
+    if(!t || (enemy==="b"&&t===t.toLowerCase())||(enemy==="w"&&t===t.toUpperCase()))
+      moves.push({r1:r,c1:c,r2,c2});
   }
-
   function slideMoves(dirs){
     let res=[];
     for(let [dr,dc] of dirs){
-      let nr=r+dr, nc=c+dc;
+      let nr=r+dr,nc=c+dc;
       while(nr>=0 && nr<8 && nc>=0 && nc<8){
-        let t=board[nr][nc];
+        let t = board[nr][nc];
         if(!t) res.push({r1:r,c1:c,r2:nr,c2:nc});
         else{ if((enemy==="b"&&t===t.toLowerCase())||(enemy==="w"&&t===t.toUpperCase())) res.push({r1:r,c1:c,r2:nr,c2:nc}); break; }
         nr+=dr; nc+=dc;
@@ -226,7 +142,7 @@ function pieceMoves(r,c,p){
   }
 
   switch(p.toLowerCase()){
-    case "p": 
+    case "p":
       let dir=p==="P"?-1:1;
       if(!board[r+dir]?.[c]) add(r+dir,c);
       if((p==="P"&&r===6)||(p==="p"&&r===1)) if(!board[r+dir]?.[c]&&!board[r+2*dir]?.[c]) add(r+2*dir,c);
@@ -244,5 +160,6 @@ function pieceMoves(r,c,p){
   return moves;
 }
 
-// --- Inicia ---
-initBoard();
+// --- Inicializa ---
+drawBoard();
+
