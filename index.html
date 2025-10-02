@@ -1,17 +1,41 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Ajedrez IA Imbatible</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ajedrez — IA Estratégica</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
-    <h1>Ajedrez vs IA</h1>
-    <div id="status">Turno de blancas</div>
-    <div id="board"></div>
-    <button id="restartBtn">Reiniciar Juego</button>
-  </div>
+  <header>
+    <h1>Ajedrez — Blancas vs IA (Negras)</h1>
+    <div class="controls">
+      <label for="depth">Profundidad (depth):</label>
+      <select id="depth">
+        <option value="3">3 (rápido)</option>
+        <option value="4" selected>4 (equilibrado)</option>
+        <option value="5">5 (fuerte)</option>
+        <option value="6">6 (muy fuerte, más lento)</option>
+      </select>
+
+      <button id="restartBtn">Reiniciar</button>
+    </div>
+  </header>
+
+  <main>
+    <aside class="info">
+      <div id="status">Turno de blancas</div>
+      <div class="note">Haz clic en una pieza blanca para ver movimientos legales.</div>
+    </aside>
+
+    <section id="boardWrap">
+      <div id="board" class="board"></div>
+    </section>
+  </main>
+
+  <footer>
+    <small>Motor diseñado para jugar estratégico — profundidad configurable.</small>
+  </footer>
 
   <script src="chess.js"></script>
 </body>
